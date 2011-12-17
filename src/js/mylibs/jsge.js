@@ -44,9 +44,30 @@ var jsge = (function(me) {
             
             args.init && args.init.apply(this);
             
+            me.fps_tracker = [];
+            me.getFPS = function() {
+                var av = 0;
+                for(var i in me.fps_tracker) {
+                    av += me.fps_tracker[i];
+                }
+                av /= me.fps_tracker.length;
+                return av;
+            }
+            
             var local_closure = this;
+            var prev_time = new Date().getTime()/1000;
+            this.runtime = 0;
             function loop() {
-                //try {
+                // Track time delta and fps
+                var now = new Date().getTime()/1000,
+                    delta = now - prev_time;
+                prev_time = now;
+                me.runtime += delta;
+                
+                me.fps_tracker.push(1.0/delta);
+                if(me.fps_tracker.length == 20) me.fps_tracker.shift();
+                
+                try {
                     if(me.running) {
                         requestAnimFrame(loop, me.canvas);
                         
@@ -72,17 +93,27 @@ var jsge = (function(me) {
                             sprite.draw();
                         }
                         
-                        args.main && args.main.apply(local_closure)
+                        args.main && args.main.apply(local_closure, [delta])
                     } else {
                         args.exit && args.exit.apply(local_closure);
                         
                         // Internal pack-up code here
                         
                     }
-                //} catch(err) {
-                //    local_closure.quit();
-                //}
+                } catch(err) {
+                    console.log(err);
+                    local_closure.quit();
+                }
             }
+            
+            window.addEventListener("blur", function() {
+                me.running = false;
+            });
+            
+            window.addEventListener("focus", function() {
+                me.running = true;
+                loop();
+            });
             
             loop();
             

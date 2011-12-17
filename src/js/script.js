@@ -13,7 +13,7 @@ $(document).ready(function() {
             this.stars = [];
             
             /* Create the stars in the background */
-            for(var i=0; i<15; i++) {
+            for(var i=0; i<20; i++) {
                 var star = new jsge.Sprite(this, {
                     x: Math.random()*this.getWidth(),
                     y: Math.random()*this.getHeight()*2 - this.getHeight(),
@@ -38,6 +38,7 @@ $(document).ready(function() {
                     },
                     draw : function() {
                         engine.ctx.strokeStyle = "rgba(255,255,255,0.1)";
+                        engine.ctx.lineCap = "round";
                         engine.ctx.beginPath();
                         engine.ctx.moveTo(
                             this.position_trail_x[0],
@@ -145,10 +146,10 @@ $(document).ready(function() {
                     var left_or_right = (this.getState().indexOf("right")!=-1) ? "right" : "left";
                     if(engine.left.pressed && !engine.right.pressed) {
                         left_or_right = "left";
-                        this.velocity.x = -speed;
+                        this.position.x -= speed;
                     } else if(engine.right.pressed && !engine.left.pressed) {
                         left_or_right = "right";
-                        this.velocity.x = speed;
+                        this.position.x += speed;
                     } else {
                         this.velocity.x = 0;
                     }
@@ -169,18 +170,22 @@ $(document).ready(function() {
             
             this.player.setState("stand-right");
             
+            this.canvas.addEventListener("mouseup", function(e) {
+                var stand_or_fall = (engine.player.getState().indexOf("fall")==-1) ? "fall" : "stand";
+                var left_or_right = "left";
+                if(e.offsetX < engine.player.position.x) {
+                    left_or_right = "left";
+                } else {
+                    left_or_right = "right";
+                }
+                engine.player.setState(stand_or_fall + "-" + left_or_right);
+            });
             
             /*
             player.listen("leavescreen", function() {
                 this.velocity.x *= -1;
                 this.velocity.y *= -1;
                 engine.blip.play();
-            });
-            
-            this.canvas.addEventListener("mouseup", function(e) {
-                player.clear();
-                player.position.x = e.offsetX;
-                player.position.y = e.offsetY;
             });
             
             engine.left = engine.keys.addKey({
@@ -226,8 +231,8 @@ $(document).ready(function() {
             });
         },
         
-        main: function() {
-            
+        main: function(delta) {
+            this.ctx.strokeText(this.getFPS().toFixed(0) + " fps", 10, 30);
         },
         
         exit: function() {
