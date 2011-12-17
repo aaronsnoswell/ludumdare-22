@@ -46,7 +46,7 @@ var jsge = (function(me) {
             
             var local_closure = this;
             function loop() {
-                try {
+                //try {
                     if(me.running) {
                         requestAnimFrame(loop, me.canvas);
                         
@@ -55,10 +55,21 @@ var jsge = (function(me) {
                         // Update
                         // Draw
                         
+                        local_closure.ctx.clearRect(
+                            0,
+                            0,
+                            local_closure.getWidth(),
+                            local_closure.getHeight()
+                        );
+                        
                         for(var s in local_closure.sprites) {
                             var sprite = local_closure.sprites[s];
                             sprite.update();
                             sprite.clear();
+                            
+                            // Culling optimisations
+                            if(!sprite.onScreen()) continue;
+                            
                             sprite.draw();
                         }
                         
@@ -69,9 +80,9 @@ var jsge = (function(me) {
                         // Internal pack-up code here
                         
                     }
-                } catch(err) {
-                    local_closure.quit();
-                }
+                //} catch(err) {
+                //    local_closure.quit();
+                //}
             }
             
             loop();
@@ -135,11 +146,21 @@ var jsge = (function(me) {
         me.alpha = 0;
         
         me.img = args.img;
+        me.fill = args.fill;
         
         me.size = {
             w: isdef(args.w) ? args.w : me.img.width,
             h: isdef(args.h) ? args.h : me.img.height
         }
+        
+        me.origin = isdef(args.origin) ? args.origin : "c";
+        me.origin_offset_x =
+            (me.origin.indexOf("e")!==-1) ? -me.size.w :
+            (me.origin.indexOf("w")!==-1) ? 0 : -me.size.w/2;
+        me.origin_offset_y =
+            (me.origin.indexOf("n")!==-1) ? 0 :
+            (me.origin.indexOf("s")!==-1) ? -me.size.h : -me.size.h/2;
+        
         
         me.mass = isdef(args.mass) ? args.mass : 0;
         
@@ -156,25 +177,41 @@ var jsge = (function(me) {
                this.position.y<0 || this.position.y>engine.getHeight()) {
                 engine.trigger("leavescreen", [this]);
             }
+            
+            args.update && args.update.apply(this);
         }
         
         me.clear = function() {
             engine.ctx.clearRect(
-                this.position.x - this.size.w/2,
-                this.position.y - this.size.h/2,
+                this.position.x + this.origin_offset_x,
+                this.position.y + this.origin_offset_y,
                 this.size.w,
                 this.size.h
             );
+            
+            args.clear && args.clear.apply(this);
         }
         
         me.draw = function() {
-            engine.ctx.drawImage(
-                this.img,
-                this.position.x - this.size.w/2,
-                this.position.y - this.size.h/2,
-                this.size.w,
-                this.size.h
-            );
+            if(this.img) {
+                engine.ctx.drawImage(
+                    this.img,
+                    this.position.x + this.origin_offset_x,
+                    this.position.y + this.origin_offset_y,
+                    this.size.w,
+                    this.size.h
+                );
+            } else if(this.fill) {
+                engine.ctx.fillStyle = this.fill;
+                engine.ctx.fillRect(
+                    this.position.x + this.origin_offset_x,
+                    this.position.y + this.origin_offset_y,
+                    this.size.w,
+                    this.size.h
+                )
+            }
+            
+            args.draw && args.draw.apply(this);
         }
         
         me.remove = function() {
@@ -186,6 +223,14 @@ var jsge = (function(me) {
             engine.listen(event, function(fired_by) {
                 if(fired_by == me) callback.apply(me);
             });
+        }
+        
+        me.onScreen = function() {
+            if(this.position.x < -this.size.w) return false;
+            if(this.position.x > engine.getWidth() + this.size.w) return false;
+            if(this.position.y < -this.size.h) return false;
+            if(this.position.y > engine.getHeight() + this.size.h) return false;
+            return true;
         }
         
         engine.sprites.push(me);

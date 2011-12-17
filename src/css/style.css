@@ -212,12 +212,16 @@ td { vertical-align: top; }
    ========================================================================== */
 
 body {
-    background: #efefef;
+    background: #444;
 }
 
 .content {
     position: relative;
     height: 100%;
+}
+
+.gamecontent {
+    display: none;
 }
 
 #stage {
@@ -226,8 +230,7 @@ body {
     top: 50%;
     margin: -325px auto 0px;
     
-    border: 1px solid #bbb;
-    background: #fff;
+    background: #222;
 }
 
 canvas, img {
