@@ -65,7 +65,6 @@ var jsge = (function(me) {
                         for(var s in local_closure.sprites) {
                             var sprite = local_closure.sprites[s];
                             sprite.update();
-                            sprite.clear();
                             
                             // Culling optimisations
                             if(!sprite.onScreen()) continue;
@@ -161,6 +160,14 @@ var jsge = (function(me) {
             (me.origin.indexOf("n")!==-1) ? 0 :
             (me.origin.indexOf("s")!==-1) ? -me.size.h : -me.size.h/2;
         
+        me.states = isdef(args.states) ? args.states : {};
+        me.state = "";
+        me.setState = function(state) {
+            this.state = state;
+        }
+        me.getState = function() {
+            return this.state;
+        }
         
         me.mass = isdef(args.mass) ? args.mass : 0;
         
@@ -194,13 +201,27 @@ var jsge = (function(me) {
         
         me.draw = function() {
             if(this.img) {
-                engine.ctx.drawImage(
-                    this.img,
-                    this.position.x + this.origin_offset_x,
-                    this.position.y + this.origin_offset_y,
-                    this.size.w,
-                    this.size.h
-                );
+                if(me.state == "") {
+                    engine.ctx.drawImage(
+                        this.img,
+                        this.position.x + this.origin_offset_x,
+                        this.position.y + this.origin_offset_y,
+                        this.size.w,
+                        this.size.h
+                    );
+                } else {
+                    engine.ctx.drawImage(
+                        this.img,
+                        this.states[this.state].x,
+                        this.states[this.state].y,
+                        this.size.w,
+                        this.size.h,
+                        this.position.x + this.origin_offset_x,
+                        this.position.y + this.origin_offset_y,
+                        this.size.w,
+                        this.size.h
+                    );
+                }
             } else if(this.fill) {
                 engine.ctx.fillStyle = this.fill;
                 engine.ctx.fillRect(
