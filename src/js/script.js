@@ -10,17 +10,21 @@ $(document).ready(function() {
         init: function() {
             this.ctx.font = "20pt Arial";
             
+            // Arbitary scale to get realistic-looking fall speed
+            var gravity = 9.81 * 200;
+            
+            /*
             this.stars = [];
             
-            /* Create the stars in the background */
+            // Create the stars in the background
             for(var i=0; i<20; i++) {
                 var star = new jsge.Sprite(this, {
                     x: Math.random()*this.getWidth(),
                     y: Math.random()*this.getHeight()*2 - this.getHeight(),
                     w: 8,
                     h: 8,
-                    vx: 0.2,
-                    vy: 1,
+                    vx: 2,
+                    vy: 10,
                     fill: "rgba(255,254,188,0.7)",
                     update : function() {
                         this.trail_length = this.trail_length || 110;
@@ -33,8 +37,8 @@ $(document).ready(function() {
                             this.position_trail_y.shift();
                         }
                         
-                        this.position_trail_x.push(this.position.x);
-                        this.position_trail_y.push(this.position.y);
+                        this.position_trail_x.push(this.getX());
+                        this.position_trail_y.push(this.getY());
                     },
                     draw : function() {
                         engine.ctx.strokeStyle = "rgba(255,255,255,0.1)";
@@ -45,8 +49,8 @@ $(document).ready(function() {
                             this.position_trail_y[0]
                         );
                         engine.ctx.lineTo(
-                            this.position.x,
-                            this.position.y
+                            this.getX(),
+                            this.getY()
                         );
                        engine.ctx.closePath(); 
                        engine.ctx.stroke();
@@ -69,9 +73,9 @@ $(document).ready(function() {
                 
                 star.listen("leavescreen", function() {
                     // Move the star back up to the top if it falls off-screen
-                    if(this.position.y >= engine.getHeight() + 16 + this.trail_length) {
-                        this.position.x = Math.random()*engine.getWidth();
-                        this.position.y = Math.random()*engine.getHeight() - engine.getHeight();
+                    if(this.getY() >= engine.getHeight() + 16 + this.trail_length) {
+                        this.setX(Math.random()*engine.getWidth());
+                        this.setY(Math.random()*engine.getHeight() - engine.getHeight());
                         this.position_trail_x = [];
                         this.position_trail_y = [];
                     }
@@ -80,6 +84,7 @@ $(document).ready(function() {
                 
                 this.stars.push(star);
             }
+            */
             
             var player_start_x = 850,
                 player_start_y = 350;
@@ -91,26 +96,27 @@ $(document).ready(function() {
                 pillar_spacing = 700
                 pillar_step = 200;
             
-            
-            /* Create the pillars */
+            // Create the pillars
             for(var i=0; i<3; i++) {
                 // Create the pillar the player starts on
-                this.pillars.push(new jsge.Sprite(this, {
+                var pillar = new jsge.Sprite(this, {
                     x: player_start_x - i*pillar_spacing,
                     y: player_start_y - i*pillar_step,
                     w: pillar_width,
                     h: pillar_height,
                     origin: "n",
                     fill: "rgb(45, 45, 55)"
-                }));
+                })
+                this.pillars.push(pillar);
             }
             
-            this.player = new jsge.Sprite(this, {
+            var player = new jsge.Sprite(this, {
                 x: 850,
                 y: 350,
                 w: 32,
                 h: 64,
                 origin: "s",
+                mass: 70,
                 img: document.getElementById("img-player"),
                 states: {
                     "stand-right": {
@@ -131,49 +137,65 @@ $(document).ready(function() {
                     }
                 },
                 update : function() {
-                    var stand_or_fall = "fall";
-                    var speed = 4;
-                    if(this.onPlatform()) {
-                        stand_or_fall = "stand";
-                        this.acceleration.y = 0;
-                        this.velocity.y = 0;
-                        speed = 2;
-                    } else {
-                        this.acceleration.y = 1;
-                        speed = 4;
-                    }
+                    var cfs = (this.getState().indexOf("stand")==-1) ? "fall" : "stand",
+                        speed = (cfs=="fall") ? 20 : 10,
+                        speedlim = (cfs=="fall") ? 300 : 30;
                     
-                    var left_or_right = (this.getState().indexOf("right")!=-1) ? "right" : "left";
+                    // Handle key input
                     if(engine.left.pressed && !engine.right.pressed) {
-                        left_or_right = "left";
-                        this.position.x -= speed;
+                        if(Math.abs(this.getVx()) < speedlim)
+                            this.phys_state.vel.x -= speed;
                     } else if(engine.right.pressed && !engine.left.pressed) {
-                        left_or_right = "right";
-                        this.position.x += speed;
+                        if(Math.abs(this.getVx()) < speedlim)
+                            this.phys_state.vel.x += speed;
                     } else {
-                        this.velocity.x = 0;
+                        this.phys_state.vel.x *= 0.8;
                     }
                     
-                    this.setState(stand_or_fall + "-" + left_or_right);
+                    var standing_on = this.onPlatform();
+                    if(standing_on) {
+                        this.setVy(0);
+                        this.setY(standing_on.getY());
+                    } else {
+                        this.phys_state.vel.y += gravity/this.phys_state.mass;
+                    }
+                    
+                    if(engine.spacebar.pressed && cfs=="stand") {
+                        this.phys_state.vel.y -= 200;
+                    }
+                    
+                    // Update the player's sprite state
+                    var fs = "stand"
+                    if(this.getVy() != 0) fs = "fall";
+                    
+                    var lr = "right";
+                    if(this.getVx() < 0) lr = "left";
+                    
+                    this.setState(fs + "-" + lr);
                 }
             });
+            this.player = player;
             
-            this.player.onPlatform = function() {
+            player.setState("stand-right");
+            
+            player.onPlatform = function() {
+                var y_threshold = 5;
                 for(var p in engine.pillars) {
                     var pillar = engine.pillars[p];
-                    if(Math.abs(this.position.x - pillar.position.x) < pillar.size.w) {
-                        if(this.position.y >= pillar.position.y) return true;
+                    if(Math.abs(this.getX()-pillar.getX()) < pillar.size.w/2) {
+                        if(Math.abs(this.getY()-pillar.getY()) < y_threshold)
+                            return pillar;
                     }
                 }
-                return false;
-            }   
+                return null;
+            }
             
-            this.player.setState("stand-right");
             
+            /*
             this.canvas.addEventListener("mouseup", function(e) {
                 var stand_or_fall = (engine.player.getState().indexOf("fall")==-1) ? "fall" : "stand";
                 var left_or_right = "left";
-                if(e.offsetX < engine.player.position.x) {
+                if(e.offsetX < engine.player.getX()) {
                     left_or_right = "left";
                 } else {
                     left_or_right = "right";
@@ -181,24 +203,10 @@ $(document).ready(function() {
                 engine.player.setState(stand_or_fall + "-" + left_or_right);
             });
             
-            /*
             player.listen("leavescreen", function() {
                 this.velocity.x *= -1;
                 this.velocity.y *= -1;
                 engine.blip.play();
-            });
-            
-            engine.left = engine.keys.addKey({
-	            keyCode: 37
-            });
-            engine.right = engine.keys.addKey({
-	            keyCode: 39
-            });
-            engine.up = engine.keys.addKey({
-	            keyCode: 38
-            });
-            engine.down = engine.keys.addKey({
-	            keyCode: 40
             });
             
             this.blip = new Audio("audio/blip.wav");
@@ -223,15 +231,12 @@ $(document).ready(function() {
             engine.down = engine.keys.addKey({
 	            keyCode: 40
             });
-            engine.spcaebar = engine.keys.addKey({
-	            keyCode: 32,
-	            press: function() {
-	                engine.player.position.y -= 50;
-	            }
+            engine.spacebar = engine.keys.addKey({
+	            keyCode: 32
             });
         },
         
-        main: function(delta) {
+        main: function(now, delta) {
             this.ctx.strokeText(this.getFPS().toFixed(0) + " fps", 10, 30);
         },
         
@@ -240,7 +245,6 @@ $(document).ready(function() {
         }
     });
     
-    console.log(engine);
     engine.start();
 
 });
