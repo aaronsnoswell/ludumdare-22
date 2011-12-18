@@ -18,7 +18,7 @@ $(document).ready(function() {
             this.stars = [];
             
             // Create the stars in the background
-            for(var i=0; i<20; i++) {
+            for(var i=0; i<40; i++) {
                 var star = new jsge.Sprite(this, {
                     x: Math.random()*this.getWidth(),
                     y: Math.random()*this.getHeight()*2 - this.getHeight(),
@@ -26,18 +26,22 @@ $(document).ready(function() {
                     h: 8,
                     vx: 4,
                     vy: 0,
-                    fill: "rgba(255,254,188,0.7)",
+                    omega: Math.random()*0.5,
+                    fill: "rgba(255,254,188,0.6)",
                     update : function() {
-                        this.phys_state.vel.y = engine.star_fall_speed;
-                        this.phys_state.vel.x = engine.star_fall_speed_x;
+                        this.phys_state.vel.y = this.speedscale*engine.star_fall_speed;
+                        this.phys_state.vel.x = this.speedscale*engine.star_fall_speed_x;
                     }
                 });
+                star.speedscale = Math.random()*0.5 + 1;
                 
                 star.listen("leavescreen", function() {
                     // Move the star back up to the top if it falls off-screen
-                    if(this.getY() >= engine.getHeight() + 16 + this.trail_length) {
-                        this.setX(Math.random()*engine.getWidth()) + engine.player.getX();
-                        this.setY(Math.random()*engine.getHeight() + engine.player.getY());
+                    if(this.getY() >= engine.getHeight() + 16) {
+                        this.setX((Math.random()-0.5)*engine.getWidth() + engine.player.getX());
+                        this.setY((Math.random()-1)*engine.getHeight() + engine.player.getY());
+                        this.speedscale = Math.random()*0.5 + 1;
+                        this.omega = Math.random()*0.5;
                     }
                 });
                 
@@ -117,7 +121,7 @@ $(document).ready(function() {
                         this.setY(standing_on.getY());
                         this.phys_state.vel.x *= 0.9;
                     } else {
-                        this.phys_state.vel.y += engine.gravity/this.phys_state.mass + 5;
+                        //this.phys_state.vel.y += engine.gravity/this.phys_state.mass + 5;
                         if(this.getY() > engine.getHeight()*2) {
                             this.reset();
                         }
@@ -244,8 +248,8 @@ $(document).ready(function() {
                 }
             } else {
                 this.gravity = 9.81*200;
-                    this.star_fall_speed = this.gravity / 100 + 5;
-                    this.star_fall_speed_x = 4;
+                    this.star_fall_speed = this.gravity / 80 + 5;
+                    this.star_fall_speed_x = 10;
             }
         },
         

@@ -431,12 +431,17 @@ var jsge = (function(me) {
         
         me.draw = function(now, delta) {
             var tdr = me.getTransformedDrawRect();
+            
+            engine.ctx.save();
+            engine.ctx.rotate(this.theta);
+            //engine.ctx.translate(tdr.x, tdr.y);
+            
             if(this.img) {
                 if(me.state == "") {
                     engine.ctx.drawImage(
                         this.img,
-                        tdr.x,
-                        tdr.y,
+                        0,
+                        0,
                         this.size.w,
                         this.size.h
                     );
@@ -447,8 +452,8 @@ var jsge = (function(me) {
                         this.states[this.state].y,
                         this.size.w,
                         this.size.h,
-                        tdr.x,
-                        tdr.y,
+                        0,
+                        0,
                         this.size.w,
                         this.size.h
                     );
@@ -456,12 +461,16 @@ var jsge = (function(me) {
             } else if(this.fill) {
                 engine.ctx.fillStyle = this.fill;
                 engine.ctx.fillRect(
-                    tdr.x,
-                    tdr.y,
+                    0,
+                    0,
                     this.size.w,
                     this.size.h
                 )
             }
+            
+            engine.ctx.translate(-tdr.x, -tdr.y);
+            engine.ctx.rotate(-this.theta);
+            engine.ctx.restore();
             
             args.draw && args.draw.apply(this);
         }
