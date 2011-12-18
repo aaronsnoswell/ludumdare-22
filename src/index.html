@@ -43,6 +43,14 @@
     <div class="gamecontent">
         <img src="img/player.png" id="img-player" />
         <img src="img/star.png" id="img-star" />
+        <audio preload="auto" autobuffer id="sfx-jump" > 
+            <source src="audio/jump.ogg" />
+            <source src="audio/jump.wav" />
+            <source src="audio/jump.mp3" />
+        </audio>
+        <audio preload="auto" autobuffer id="sfx-up" > 
+            <source src="audio/up.wav" />
+        </audio>
     </div>
     
     
@@ -52,10 +60,10 @@
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
     <script>window.jQuery || document.write('<script src="js/libs/jquery-1.6.4.min.js"><\/script>')</script>
     
-    
-    <!-- scripts concatenated and minified via build script -->
     <script defer src="js/libs/keys.js"></script>
     <script defer src="js/mylibs/jsge.js"></script>
+    
+    <!-- scripts concatenated and minified via build script -->
     <script defer src="js/plugins.js"></script>
     <script defer src="js/script.js"></script>
     <!-- end scripts -->

@@ -227,8 +227,7 @@ body {
 #stage {
     position: relative;
     display: block;
-    top: 50%;
-    margin: -325px auto 0px;
+    margin: 0px auto;
     
     background: #222;
 }

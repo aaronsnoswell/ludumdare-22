@@ -54,7 +54,9 @@ var jsge = (function(me) {
                 return av;
             }
             
-            var local_closure = this;
+            me.camera_x = 0;
+            me.camera_y = 0;
+            
             var prev_time = new Date().getTime()/1000;
             this.runtime = 0;
             function loop() {
@@ -76,67 +78,42 @@ var jsge = (function(me) {
                         // Update
                         // Draw
                         
-                        local_closure.ctx.clearRect(
-                            0,
-                            0,
-                            local_closure.getWidth(),
-                            local_closure.getHeight()
-                        );
-                        
-                        /* Collide physics elements against each other */
-                        for(var i=0; i<me.colliders.length; i++) {
-                            var s1 = me.colliders[i];
-                            for(var j=i; j<me.colliders.length; j++) {
-                                var s2 = me.colliders[j];
-                                if(s2 == s1) continue;
-                                
-                                // Bounding-box hitest the two sprites
-                                var hitx = false,
-                                    hity = false;
-                                var d1 = s1.getDrawRect(),
-                                    d2 = s2.getDrawRect(),
-                                    dx = Math.abs(d2.x-d1.x),
-                                    dy = Math.abs(d2.y-d1.y);
-                                
-                                if(d1.x < d2.x) {
-                                    if(dx < d1.w) hitx = true;
-                                } else {
-                                    if(dx < d2.w) hitx = true;
-                                }
-                                if(!hitx) continue;
-                                
-                                if(d1.y < d2.y) {
-                                    if(dy < d1.h) hity = true;
-                                } else {
-                                    if(dy < d2.h) hity = true;
-                                }
-                                if(!hity) continue;
-                                
-                                var norm = s2.getDrawCenter().sub(s1.getDrawCenter());
-                                me.trigger("spriteCollide", [s1, s2, norm]);
-                            }
+                        // Update the camera position
+                        me.camera_x = me.camera_target.getX() - me.getWidth()/2;
+                        if(me.camera_target.getY() < 400) {
+                            me.camera_y = me.camera_target.getY() - me.getHeight()/2;
                         }
                         
-                        for(var s in local_closure.sprites) {
-                            var sprite = local_closure.sprites[s];
+                        me.ctx.clearRect(
+                            0,
+                            0,
+                            me.getWidth(),
+                            me.getHeight()
+                        );
+                        
+                        /* Collide physics elements agains each other */
+                        me.collide();
+                        
+                        for(var s in me.sprites) {
+                            var sprite = me.sprites[s];
                             sprite.update(now, delta);
                             
                             // Culling optimisations
-                            if(!sprite.onScreen()) continue;
+                            //if(!sprite.onScreen()) continue;
                             
                             sprite.draw(now, delta);
                         }
                         
-                        args.main && args.main.apply(local_closure, [now, delta])
+                        args.main && args.main.apply(me, [now, delta])
                     } else {
-                        args.exit && args.exit.apply(local_closure);
+                        args.exit && args.exit.apply(me);
                         
                         // Internal pack-up code here
                         
                     }
                 } catch(err) {
                     console.log(err, err.message, err.stack);
-                    local_closure.quit();
+                    me.quit();
                 }
             }
             
@@ -211,6 +188,59 @@ var jsge = (function(me) {
         me.addCollider = function(sprite) {
             if(me.colliders.indexOf(sprite)!=-1) return;
             me.colliders.push(sprite);
+        }
+        
+        me.hitTestBoxOnBox = function(rect1, rect2) {
+            var dx = Math.abs(rect2.x-rect1.x),
+                dy = Math.abs(rect2.y-rect1.y),
+                hitx = false,
+                hity = false;
+            
+            if(rect1.x < rect2.x) {
+                if(dx < rect1.w) hitx = true;
+            } else {
+                if(dx < rect2.w) hitx = true;
+            }
+            if(!hitx) return false;
+            
+            if(rect1.y < rect2.y) {
+                if(dy < rect1.h) hity = true;
+            } else {
+                if(dy < rect2.h) hity = true;
+            }
+            if(!hity) return false;
+            
+            return true;
+        }
+        
+        me.collide = function() {
+            for(var i=0; i<me.colliders.length; i++) {
+                var s1 = me.colliders[i];
+                for(var j=i; j<me.colliders.length; j++) {
+                    var s2 = me.colliders[j];
+                    if(s2 == s1) continue;
+                    
+                    // Bounding-box hitest the two sprites
+                    if(me.hitTestBoxOnBox(s1.getDrawRect(), s2.getDrawRect())) {
+                        var norm = s2.getDrawCenter().sub(s1.getDrawCenter());
+                        me.trigger("spriteCollide", [s1, s2, norm]);
+                    } else {
+                        continue;
+                    }
+                }
+            }
+        }
+        
+        me.setCameraTarget = function(sprite, box) {
+            me.camera_target = sprite;
+            me.camera_box =  box;
+        }
+        
+        me.getCameraX = function() {
+            return me.camera_x;
+        }
+        me.getCameraY = function() {
+            return me.camera_y;
         }
         
         me.trigger = function(event_name, args) {
@@ -356,6 +386,16 @@ var jsge = (function(me) {
             };
         }
         
+        me.getTransformedDrawRect = function() {
+            if(!engine.camera_target) return me.getDrawRect();
+            return {
+                x: this.getX() + this.origin_offset_x - engine.getCameraX(),
+                y: this.getY() + this.origin_offset_y - engine.getCameraY(),
+                w: this.size.w,
+                h: this.size.h
+            };
+        }
+        
         me.getDrawCenter = function() {
             return new Vector(
                 this.getX() + this.origin_offset_x + this.size.w/2,
@@ -370,7 +410,7 @@ var jsge = (function(me) {
             this.omega += this.alpha;
             
             if(this.getX()<0 || this.getX()>engine.getWidth() ||
-               this.getY()<0 || this.getY().y>engine.getHeight()) {
+               this.getY()<0 || this.getY()>engine.getHeight()) {
                 engine.trigger("leavescreen", [this]);
             }
             
@@ -378,9 +418,10 @@ var jsge = (function(me) {
         }
         
         me.clear = function() {
+            var tdr = me.getTransformedDrawRect();
             engine.ctx.clearRect(
-                this.getX() + this.origin_offset_x,
-                this.getY() + this.origin_offset_y,
+                tdr.x,
+                tdr.y,
                 this.size.w,
                 this.size.h
             );
@@ -389,12 +430,13 @@ var jsge = (function(me) {
         }
         
         me.draw = function(now, delta) {
+            var tdr = me.getTransformedDrawRect();
             if(this.img) {
                 if(me.state == "") {
                     engine.ctx.drawImage(
                         this.img,
-                        this.getX() + this.origin_offset_x,
-                        this.getY() + this.origin_offset_y,
+                        tdr.x,
+                        tdr.y,
                         this.size.w,
                         this.size.h
                     );
@@ -405,8 +447,8 @@ var jsge = (function(me) {
                         this.states[this.state].y,
                         this.size.w,
                         this.size.h,
-                        this.getX() + this.origin_offset_x,
-                        this.getY() + this.origin_offset_y,
+                        tdr.x,
+                        tdr.y,
                         this.size.w,
                         this.size.h
                     );
@@ -414,8 +456,8 @@ var jsge = (function(me) {
             } else if(this.fill) {
                 engine.ctx.fillStyle = this.fill;
                 engine.ctx.fillRect(
-                    this.getX() + this.origin_offset_x,
-                    this.getY() + this.origin_offset_y,
+                    tdr.x,
+                    tdr.y,
                     this.size.w,
                     this.size.h
                 )

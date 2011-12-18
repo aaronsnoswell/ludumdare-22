@@ -21,7 +21,7 @@ var keyListener = function(name,settings){
 	var index = keyListeners.length;
 	if(!settings) settings = {};
 	var enabled = settings.enabled || true,
-       logging = settings.logging || true;
+       logging = settings.logging || false;
 	keyListeners.push(kL);
 	var usedKeys = [],
 		pressedKeys = [];

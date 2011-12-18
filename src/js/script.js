@@ -11,9 +11,10 @@ $(document).ready(function() {
             this.ctx.font = "20pt Arial";
             
             // Arbitary scale to get realistic-looking fall speed
-            var gravity = 9.81 * 200;
+            this.gravity = 9.81 * 200;
+            this.star_fall_speed = 0;
+            this.star_fall_speed_x = 4;
             
-            /*
             this.stars = [];
             
             // Create the stars in the background
@@ -23,77 +24,35 @@ $(document).ready(function() {
                     y: Math.random()*this.getHeight()*2 - this.getHeight(),
                     w: 8,
                     h: 8,
-                    vx: 2,
-                    vy: 10,
+                    vx: 4,
+                    vy: 0,
                     fill: "rgba(255,254,188,0.7)",
                     update : function() {
-                        this.trail_length = this.trail_length || 110;
-                        
-                        this.position_trail_x = this.position_trail_x || [];
-                        this.position_trail_y = this.position_trail_y || [];
-                        
-                        if(this.position_trail_x.length == this.trail_length) {
-                            this.position_trail_x.shift();
-                            this.position_trail_y.shift();
-                        }
-                        
-                        this.position_trail_x.push(this.getX());
-                        this.position_trail_y.push(this.getY());
-                    },
-                    draw : function() {
-                        engine.ctx.strokeStyle = "rgba(255,255,255,0.1)";
-                        engine.ctx.lineCap = "round";
-                        engine.ctx.beginPath();
-                        engine.ctx.moveTo(
-                            this.position_trail_x[0],
-                            this.position_trail_y[0]
-                        );
-                        engine.ctx.lineTo(
-                            this.getX(),
-                            this.getY()
-                        );
-                       engine.ctx.closePath(); 
-                       engine.ctx.stroke();
-                    },
-                    clear : function() {
-                        var line_clear_glitch_padding = 5;
-                        var startx = Math.min(this.position_trail_x[0], this.position_trail_x[19]) - line_clear_glitch_padding,
-                            starty = Math.min(this.position_trail_y[0], this.position_trail_y[19]) - line_clear_glitch_padding,
-                            width = Math.max(this.position_trail_x[0], this.position_trail_x[19]) + line_clear_glitch_padding - startx,
-                            height = Math.max(this.position_trail_y[0], this.position_trail_y[19]) + line_clear_glitch_padding - starty;
-                        
-                        engine.ctx.clearRect(
-                            startx,
-                            starty,
-                            width,
-                            height
-                        );
+                        this.phys_state.vel.y = engine.star_fall_speed;
+                        this.phys_state.vel.x = engine.star_fall_speed_x;
                     }
                 });
                 
                 star.listen("leavescreen", function() {
                     // Move the star back up to the top if it falls off-screen
                     if(this.getY() >= engine.getHeight() + 16 + this.trail_length) {
-                        this.setX(Math.random()*engine.getWidth());
-                        this.setY(Math.random()*engine.getHeight() - engine.getHeight());
-                        this.position_trail_x = [];
-                        this.position_trail_y = [];
+                        this.setX(Math.random()*engine.getWidth()) + engine.player.getX();
+                        this.setY(Math.random()*engine.getHeight() + engine.player.getY());
                     }
                 });
                 
                 
                 this.stars.push(star);
             }
-            */
             
             var player_start_x = 850,
                 player_start_y = 350;
             
             this.pillars = [];
             
-            var pillar_width = 26,
+            var pillar_width = 30,
                 pillar_height = 900,
-                pillar_spacing = 700
+                pillar_spacing = 400
                 pillar_step = 200;
             
             // Create the pillars
@@ -111,8 +70,8 @@ $(document).ready(function() {
             }
             
             var player = new jsge.Sprite(this, {
-                x: 850,
-                y: 350,
+                x: player_start_x,
+                y: player_start_y,
                 w: 32,
                 h: 64,
                 origin: "s",
@@ -138,8 +97,8 @@ $(document).ready(function() {
                 },
                 update : function() {
                     var cfs = (this.getState().indexOf("stand")==-1) ? "fall" : "stand",
-                        speed = (cfs=="fall") ? 20 : 10,
-                        speedlim = (cfs=="fall") ? 300 : 30;
+                        speed = (cfs=="fall") ? 20 : 5,
+                        speedlim = (cfs=="fall") ? 300 : 100;
                     
                     // Handle key input
                     if(engine.left.pressed && !engine.right.pressed) {
@@ -149,15 +108,19 @@ $(document).ready(function() {
                         if(Math.abs(this.getVx()) < speedlim)
                             this.phys_state.vel.x += speed;
                     } else {
-                        this.phys_state.vel.x *= 0.8;
+                        this.phys_state.vel.x *= 0.97;
                     }
                     
                     var standing_on = this.onPlatform();
                     if(standing_on) {
                         this.setVy(0);
                         this.setY(standing_on.getY());
+                        this.phys_state.vel.x *= 0.9;
                     } else {
-                        this.phys_state.vel.y += gravity/this.phys_state.mass;
+                        this.phys_state.vel.y += engine.gravity/this.phys_state.mass + 5;
+                        if(this.getY() > engine.getHeight()*2) {
+                            this.reset();
+                        }
                     }
                     
                     if(engine.spacebar.pressed && cfs=="stand") {
@@ -165,11 +128,19 @@ $(document).ready(function() {
                     }
                     
                     // Update the player's sprite state
-                    var fs = "stand"
-                    if(this.getVy() != 0) fs = "fall";
+                    var fs = this.getState().split("-")[0];
+                    if(this.getVy() != 0) {
+                        fs = "fall";
+                    } else {
+                        fs = "stand";
+                    }
                     
-                    var lr = "right";
-                    if(this.getVx() < 0) lr = "left";
+                    var lr = this.getState().split("-")[1];
+                    if(this.getVx() < 0) {
+                        lr = "left";
+                    } else if(this.getVx() > 0) {
+                        lr = "right";
+                    }
                     
                     this.setState(fs + "-" + lr);
                 }
@@ -179,7 +150,7 @@ $(document).ready(function() {
             player.setState("stand-right");
             
             player.onPlatform = function() {
-                var y_threshold = 5;
+                var y_threshold = 10;
                 for(var p in engine.pillars) {
                     var pillar = engine.pillars[p];
                     if(Math.abs(this.getX()-pillar.getX()) < pillar.size.w/2) {
@@ -190,19 +161,44 @@ $(document).ready(function() {
                 return null;
             }
             
+            player.reset = function() {
+                this.setX(player_start_x);
+                this.setY(player_start_y);
+                this.setVx(0);
+                this.setVy(0);
+            }
             
-            /*
+            engine.setCameraTarget(player);
+            
             this.canvas.addEventListener("mouseup", function(e) {
-                var stand_or_fall = (engine.player.getState().indexOf("fall")==-1) ? "fall" : "stand";
-                var left_or_right = "left";
-                if(e.offsetX < engine.player.getX()) {
-                    left_or_right = "left";
-                } else {
-                    left_or_right = "right";
+                if(engine.player.getState().indexOf("stand")!=-1) {
+                    var lr;
+                    if(e.offsetX < engine.player.getTransformedDrawRect().x) {
+                        lr = "left";
+                    } else {
+                        lr = "right";
+                    }
+                    engine.player.setState("stand-" + lr);
                 }
-                engine.player.setState(stand_or_fall + "-" + left_or_right);
             });
             
+            // Load some sounds
+            /*
+            var jump = document.getElementById("sfx-jump");
+            jump.volume = 0.5;
+            this.jump = jump;
+            
+            var upsound = document.getElementById("sfx-up");
+            upsound.volume = 0.5;
+            this.upsound = upsound;
+            
+            this.music = new Audio("audio/lowtones.mp3");
+            this.music.volume = 1;
+            this.music.loop = true;
+            this.music.play();
+            */
+            
+            /*
             player.listen("leavescreen", function() {
                 this.velocity.x *= -1;
                 this.velocity.y *= -1;
@@ -238,6 +234,19 @@ $(document).ready(function() {
         
         main: function(now, delta) {
             this.ctx.strokeText(this.getFPS().toFixed(0) + " fps", 10, 30);
+            var tmp = Math.sin(now/3)*9.81*215;
+            
+            if(tmp < -0.8*9.81*215) {
+                this.gravity = 9.81*200 + tmp;
+                if(!this.played_upsound) {
+                    this.star_fall_speed = 0;
+                    this.star_fall_speed_x = 0;
+                }
+            } else {
+                this.gravity = 9.81*200;
+                    this.star_fall_speed = this.gravity / 100 + 5;
+                    this.star_fall_speed_x = 4;
+            }
         },
         
         exit: function() {
