@@ -18,3 +18,17 @@ window.log = function(){
 
 // place any jQuery/helper plugins in here, instead of separate, slower script files.
 
+// Tweet sized templating
+function t(s, d){
+    for(var p in d)
+        s = s.replace(new RegExp('{'+p+'}','g'), d[p]);
+    return s;
+}
+
+// isdef
+var isdef = function(o) {
+    if(typeof(o)=="undefined") return false;
+    return true;
+}
+
+
