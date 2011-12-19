@@ -38,6 +38,7 @@ var jsge = (function(me) {
         me.canvas = document.getElementById(canvas_id);  
         me.ctx = me.canvas.getContext('2d');
         
+        
         me.keys = new keyListener({
             name: 'keyListener'
         });
@@ -103,6 +104,9 @@ var jsge = (function(me) {
                         // Draw all sprites
                         for(var s in me.sprites) {
                             var sprite = me.sprites[s];
+                            
+                            sprite.clear();
+                            
                             sprite.update(now, delta);
                             
                             // Culling optimisations
@@ -175,7 +179,7 @@ var jsge = (function(me) {
             for(var f in me.fps_history) {
                 av += me.fps_history[f];
             }
-            av /= me.fps_tracker.length;
+            av /= me.fps_history.length;
             return av;
         }
         
@@ -251,7 +255,34 @@ var jsge = (function(me) {
         me.update = function(now, delta) {
             engine.phys.integrate(this.phys, now, delta);
             
+            var visible = engine.phys.hitTestBoxOnBox(this.getRect(), {
+                x: 0,
+                y: 0,
+                w: engine.getWidth(),
+                h: engine.getHeight()
+            });
+            if(!visible) engine.trigger("leavescreen", this);
+            
             args.update && args.update.apply(this, [now, delta]);
+        }
+        
+        /**
+         * Clears the sprite from the screen
+         */
+        me.clear = function(now, delta) {
+            engine.ctx.save();
+            
+            engine.ctx.translate(this.getX()+this.origin_x, this.getY()+this.origin_y);
+            engine.ctx.rotate(this.getTheta());
+            
+            engine.ctx.clearRect(
+                this.origin_x,
+                this.origin_y,
+                this.size.w,
+                this.size.h
+            )
+            
+            engine.ctx.restore();
         }
         
         /**
@@ -259,46 +290,53 @@ var jsge = (function(me) {
          */
         me.draw = function(now, delta) {
             
-            var state = me.states[me.state];
-            state.loop = isdef(state.loop) ? state.loop : true;
-            
-            var weight_sum = 0,
-                weights = [];
-            for(var f in state.frames) {
-                var frame = state.frames[f];
-                var weight = frame.weight || 1;
-                weight_sum += weight;
-                weights.push(weight);
-            }
-            
-            var current_pos = Math.round(me.anim_time / (state.length/1000) * weight_sum + 0.5);
-            var current_frame;
-            for(var w in weights) {
-                var weight = weights[w];
-                current_pos -= weight;
-                if(current_pos <= 0) {
-                    current_frame = w;
-                    break;
+            if(me.state !== "") {
+                var state = me.states[me.state];
+                state.loop = isdef(state.loop) ? state.loop : true;
+                
+                var weight_sum = 0,
+                    weights = [];
+                for(var f in state.frames) {
+                    var frame = state.frames[f];
+                    var weight = frame.weight || 1;
+                    weight_sum += weight;
+                    weights.push(weight);
                 }
-            }
-            
-            if(state.loop) {
-                me.anim_time += delta;
-                me.anim_time %= state.length/1000;
-            } else {
-                if(me.anim_time < state.length/1000-1) {
+                
+                var current_pos = Math.round(me.anim_time / (state.length/1000) * weight_sum + 0.5);
+                var current_frame;
+                for(var w in weights) {
+                    var weight = weights[w];
+                    current_pos -= weight;
+                    if(current_pos <= 0) {
+                        current_frame = w;
+                        break;
+                    }
+                }
+                
+                if(state.loop) {
                     me.anim_time += delta;
+                    me.anim_time %= state.length/1000;
                 } else {
-                    me.anim_time = state.length/1000-1;
+                    if(me.anim_time < state.length/1000-1) {
+                        me.anim_time += delta;
+                    } else {
+                        me.anim_time = state.length/1000-1;
+                    }
                 }
             }
+            
+            engine.ctx.save();
+            
+            engine.ctx.translate(this.getX()+this.origin_x, this.getY()+this.origin_y);
+            engine.ctx.rotate(this.getTheta());
             
             if(this.img) {
                 if(me.state == "") {
                     engine.ctx.drawImage(
                         this.img,
-                        0,
-                        0,
+                        this.origin_x,
+                        this.origin_y,
                         this.size.w,
                         this.size.h
                     );
@@ -309,8 +347,8 @@ var jsge = (function(me) {
                         this.states[this.state].frames[current_frame].y,
                         this.size.w,
                         this.size.h,
-                        0,
-                        0,
+                        this.origin_x,
+                        this.origin_y,
                         this.size.w,
                         this.size.h
                     );
@@ -318,12 +356,14 @@ var jsge = (function(me) {
             } else if(this.fill) {
                 engine.ctx.fillStyle = this.fill;
                 engine.ctx.fillRect(
-                    0,
-                    0,
+                    this.origin_x,
+                    this.origin_y,
                     this.size.w,
                     this.size.h
                 )
             }
+            
+            engine.ctx.restore();
             
             args.draw && args.draw.apply(this, [now, delta]);
         }
@@ -337,10 +377,55 @@ var jsge = (function(me) {
         }
         
         /**
+         * Adds the named impulse to this object's list of active forces - the
+         * impulse is like a force, but is only applied for one iteration before
+         * being removed
+         */
+        me.addImpulse = function(name, force) {
+            me.phys.forces[name] = force;
+            me.phys.iforces.push(name);
+        }
+        
+        /**
          * Removes the named force from the list of active forces
          */
         me.removeForce = function(name) {
             delete me.phys.forces[name];
+        }
+        
+        /**
+         * Get the sum of all currently active forces
+         */
+        me.getForceSum = function() {
+            var sum = new Vector();
+            for(var f in me.phys.forces) {
+                sum.x += me.phys.forces[f].x;
+                sum.y += me.phys.forces[f].y;
+            }
+            return sum;
+        }
+        
+        /**
+         * Adds the named moment to this object's list of active moments
+         */
+        me.addMoment = function(name, moment) {
+            if(me.phys.moments[name]) return;
+            me.phys.moments[name] = moment;
+        }
+        
+        /**
+         * Adds the named moment impulse to this object's list of active moments
+         */
+        me.addMImpulse = function(name, moment) {
+            me.phys.moments[name] = moment;
+            me.phys.imoments.push(name);
+        }
+        
+        /**
+         * Removes the named moment from the list of active forces
+         */
+        me.removeMoment = function(name) {
+            delete me.phys.moments[name];
         }
         
         /* Adds an event listener that will only be called if this Sprite was
@@ -374,11 +459,30 @@ var jsge = (function(me) {
             }
         }
         
+        me.getCenter = function() {
+            return {
+                x: me.etX() + me.etW()/2,
+                y: me.etY() + me.etH()/2
+            }
+        }
+        
         me.etState = function(state) {
             isdef(state) && (this.state = state);
             return this.state;
         }
         me.getState = me.setState = me.etState;
+        
+        me.etW = function(w) {
+            isdef(w) && (this.size.w = w);
+            return this.size.w;
+        }
+        me.getW = me.setW = me.etW;
+        
+        me.etH = function(h) {
+            isdef(h) && (this.size.h = h);
+            return this.size.h;
+        }
+        me.getH = me.setH = me.etH;
         
         me.etX = function(x) {
             isdef(x) && (this.phys.pos.x = x);
@@ -485,7 +589,9 @@ var jsge = (function(me) {
         me.mass = 0;
         me.inertia = 0;
         me.forces = {};
+        me.iforces = [];
         me.moments = {};
+        me.imoments = [];
         
         return me;
     }
@@ -541,7 +647,7 @@ var jsge = (function(me) {
             var hitx = me.horizHitTestBoxOnBox(rect1, rect2);
             if(!hitx) return false;
             
-            var hitx = me.vertHitTestBoxOnBox(rect1, rect2);
+            var hity = me.vertHitTestBoxOnBox(rect1, rect2);
             if(!hity) return false;
             
             return true;
@@ -588,11 +694,10 @@ var jsge = (function(me) {
         }
         
         
-        
         /* Accelerates the given state in some characteristic manner fully
          * described by the list of forces acting on the state (state.forces)
          */
-        var accelerate = function(state, t) {
+        var accelerate = function(state, dt, t) {
             // Do something to state using t
             var acc = new Vector();
             
@@ -606,6 +711,9 @@ var jsge = (function(me) {
 		    }
 		    acc.x /= state.mass;
 		    acc.y /= state.mass;
+		    
+		    acc.x *= dt;
+		    acc.y *= dt;
 		
             return acc;
         }
@@ -614,7 +722,7 @@ var jsge = (function(me) {
          * fully described by the list of moments acting on the state
          * (state.moments)
          */
-        var angaccelerate = function(state, t) {
+        var angaccelerate = function(state, dt, t) {
             // Do something to state using t
             var alpha = 0;
             
@@ -626,6 +734,8 @@ var jsge = (function(me) {
                 alpha += state.moments[m];
             }
             alpha /= state.inertia;
+            
+		    alpha.y *= dt;
             
             return alpha;
         }
@@ -643,20 +753,24 @@ var jsge = (function(me) {
             state.mass = initial.mass;
             state.inertia = initial.inertia;
             state.forces = initial.forces;
+            state.iforces = initial.iforces;
             state.moments = initial.moments;
+            state.imoments = initial.imoments;
             
             var output = new Derivative();
             output.dpos.x = state.vel.x;
             output.dpos.y = state.vel.y;
             output.dtheta = state.omega;
-            output.dvel = accelerate(state, t+dt);
-            output.domega = angaccelerate(state, t+dt);
+            output.dvel = accelerate(state, dt, t+dt);
+            output.domega = angaccelerate(state, dt, t+dt);
             
             return output;
         }
         
         /* Integrate the given state over [t, t+dt] */
         me.integrate = function(state, t, dt) {
+            if(dt == 0) return;
+            
             var a = evaluate(state, t, 0.0, new Derivative());
             var b = evaluate(state, t+dt*0.5, dt*0.5, a);
             var c = evaluate(state, t+dt*0.5, dt*0.5, b);
@@ -675,6 +789,15 @@ var jsge = (function(me) {
             state.vel.y += dvydt * dt;
             state.theta += dthetadt * dt;
             state.omega += domegadt * dt;
+            
+            for(var f in state.iforces) {
+		        delete state.forces[state.iforces[f]];
+            }
+            state.iforces = [];
+            for(var m in state.imoments) {
+		        delete state.moments[state.imoments[m]];
+            }
+            state.imoments = [];
         }
         
         return me;
