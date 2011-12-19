@@ -11,7 +11,7 @@ $(document).ready(function() {
             log("Init");
             
             this.ctx.font = "20px Arial";
-            var gravity = new jsge.Vector(0, 600000);
+            var gravity = new jsge.Vector(0, 0*600000);
             
             this.stars = [];
             for(var i=0; i<50; i++) {
@@ -94,7 +94,8 @@ $(document).ready(function() {
         },
         
         main: function(now, delta) {
-            this.ctx.fillText(this.getFPS().toFixed(0), 10, 25);
+            this.ctx.fillStyle = "#777";
+            this.ctx.fillText(this.getFPS().toFixed(0) + " fps", 10, 25);
         },
         
         pause: function() {

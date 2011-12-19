@@ -59,6 +59,10 @@ var jsge = (function(me) {
             
             me.onwindowfocus = function() {
                 me.running = true;
+                
+                // Reset the previous time so that physics don't jump on resume
+                me.prev_time = new Date().getTime()/1000;
+                
                 args.resume && args.resume.apply(me);
                 loop();
             }
@@ -66,13 +70,13 @@ var jsge = (function(me) {
             
             
             /* ================================================================= Main Loop */
-            var prev_time = new Date().getTime()/1000;
+            me.prev_time = new Date().getTime()/1000;
             function loop() {
                 // Track time delta and fps
                 var now = new Date().getTime()/1000,
-                    delta = now - prev_time;
+                    delta = now - me.prev_time;
                 
-                prev_time = now;
+                me.prev_time = now;
                 me.runtime += delta;
                 me.fps_history.push(1.0/delta);
                 me.fps_history.shift();
